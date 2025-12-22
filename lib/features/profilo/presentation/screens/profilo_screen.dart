@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:apex/features/profilo/models/profile_models.dart';
 import 'package:apex/features/profilo/presentation/widgets/profile_action_tile.dart';
+import 'package:apex/features/profilo/presentation/widgets/profile_add_area_sheet.dart';
 import 'package:apex/features/profilo/presentation/widgets/profile_areas_sheet.dart';
 import 'package:apex/features/profilo/presentation/widgets/profile_edit_sheet.dart';
 import 'package:apex/features/profilo/presentation/widgets/profile_header_card.dart';
@@ -13,7 +14,7 @@ class ProfiloScreen extends StatefulWidget {
   final VoidCallback? onOpenNotifications;
   final VoidCallback? onOpenInfoSupport;
   final VoidCallback? onLogout;
-  final VoidCallback? onAddArea;
+  final ValueChanged<AddAreaSelection>? onAddArea;
   final ValueChanged<MonitoredArea>? onRemoveArea;
 
   const ProfiloScreen({
@@ -35,6 +36,7 @@ class ProfiloScreen extends StatefulWidget {
 class _ProfiloScreenState extends State<ProfiloScreen> {
   late ProfileUser _user;
   late List<MonitoredArea> _areas;
+  late final List<AreaOption> _availableAreas;
 
   @override
   void initState() {
@@ -60,6 +62,14 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
         category: 'Meteo',
         riskLevel: RiskLevel.low,
       ),
+    ];
+    _availableAreas = const [
+      AreaOption(name: "Cortina d'Ampezzo", detail: 'Comune · Belluno'),
+      AreaOption(name: 'Val di Fassa', detail: 'Valle · Trento'),
+      AreaOption(name: 'Rifugio Lagazuoi', detail: 'Rifugio · Belluno'),
+      AreaOption(name: 'Rifugio Auronzo', detail: 'Rifugio · Belluno'),
+      AreaOption(name: 'Canazei', detail: 'Comune · Trento'),
+      AreaOption(name: 'San Martino di Castrozza', detail: 'Comune · Trento'),
     ];
   }
 
@@ -90,7 +100,7 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
       ),
       builder: (_) => ProfileAreasSheet(
         areas: _areas,
-        onAddArea: widget.onAddArea,
+        onAddArea: () => _openAddAreaSheet(),
         onRemoveArea: (area) {
           widget.onRemoveArea?.call(area);
           setState(() {
@@ -99,6 +109,34 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _openAddAreaSheet() async {
+    final selection = await showModalBottomSheet<AddAreaSelection>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => ProfileAddAreaSheet(
+        availableAreas: _availableAreas,
+      ),
+    );
+
+    if (selection != null) {
+      widget.onAddArea?.call(selection);
+      setState(() {
+        _areas = List.of(_areas)
+          ..add(
+            MonitoredArea(
+              name: selection.area.name,
+              category: selection.risks.map((r) => r.label).join(' · '),
+              riskLevel: RiskLevel.medium,
+            ),
+          );
+      });
+    }
   }
 
   @override

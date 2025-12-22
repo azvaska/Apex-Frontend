@@ -6,6 +6,13 @@ enum RiskLevel {
   high,
 }
 
+enum RiskCategory {
+  avalanches,
+  landslides,
+  severeWeather,
+  rivers,
+}
+
 extension RiskLevelX on RiskLevel {
   String get label {
     switch (this) {
@@ -37,6 +44,47 @@ extension RiskLevelX on RiskLevel {
         return Icons.warning_amber_rounded;
       case RiskLevel.high:
         return Icons.error_rounded;
+    }
+  }
+}
+
+extension RiskCategoryX on RiskCategory {
+  String get label {
+    switch (this) {
+      case RiskCategory.avalanches:
+        return 'Valanghe';
+      case RiskCategory.landslides:
+        return 'Frane';
+      case RiskCategory.severeWeather:
+        return 'Meteo Avverso';
+      case RiskCategory.rivers:
+        return 'Fiumi';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case RiskCategory.avalanches:
+        return Icons.terrain_outlined;
+      case RiskCategory.landslides:
+        return Icons.warning_amber_rounded;
+      case RiskCategory.severeWeather:
+        return Icons.cloudy_snowing;
+      case RiskCategory.rivers:
+        return Icons.water_rounded;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case RiskCategory.avalanches:
+        return const Color(0xFF4A5568);
+      case RiskCategory.landslides:
+        return const Color(0xFF2F7BF6);
+      case RiskCategory.severeWeather:
+        return const Color(0xFF2F7BF6);
+      case RiskCategory.rivers:
+        return const Color(0xFF4A5568);
     }
   }
 }
@@ -93,4 +141,24 @@ class ProfileUser {
       avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
+}
+
+class AreaOption {
+  final String name;
+  final String detail;
+
+  const AreaOption({
+    required this.name,
+    required this.detail,
+  });
+}
+
+class AddAreaSelection {
+  final AreaOption area;
+  final Set<RiskCategory> risks;
+
+  const AddAreaSelection({
+    required this.area,
+    required this.risks,
+  });
 }
