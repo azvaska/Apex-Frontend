@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:apex/features/profilo/models/profile_models.dart';
+import 'package:apex/features/profilo/presentation/widgets/profile_avatar.dart';
 
 class ProfileHeaderCard extends StatelessWidget {
   final ProfileUser user;
@@ -58,20 +59,11 @@ class ProfileHeaderCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 64,
                   backgroundColor: Colors.transparent,
-                  child: user.avatarUrl == null
-                      ? Icon(
-                          Icons.person_outline,
-                          color: colorScheme.primary,
-                          size: 60,
-                        )
-                      : ClipOval(
-                          child: Image.network(
-                            user.avatarUrl!,
-                            width: 128,
-                            height: 128,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                  child: ProfileAvatar(
+                    imageUrl: user.avatarUrl,
+                    size: 128,
+                    iconColor: colorScheme.primary,
+                  ),
                 ),
               ],
             ),

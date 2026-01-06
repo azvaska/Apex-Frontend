@@ -114,12 +114,14 @@ class MonitoredArea {
 }
 
 class ProfileUser {
+  final String id;
   final String firstName;
   final String lastName;
   final String email;
   final String? avatarUrl;
 
   const ProfileUser({
+    required this.id,
     required this.firstName,
     required this.lastName,
     required this.email,
@@ -129,16 +131,28 @@ class ProfileUser {
   String get fullName => '${firstName.trim()} ${lastName.trim()}'.trim();
 
   ProfileUser copyWith({
+    String? id,
     String? firstName,
     String? lastName,
     String? email,
     String? avatarUrl,
   }) {
     return ProfileUser(
+      id: id ?? this.id,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
+
+  factory ProfileUser.fromJson(Map<String, dynamic> json) {
+    return ProfileUser(
+      id: json['id'] as String,
+      firstName: json['name'] as String? ?? '',
+      lastName: json['surname'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      avatarUrl: json['profileImage'] as String?,
     );
   }
 }

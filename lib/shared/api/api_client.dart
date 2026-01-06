@@ -42,6 +42,13 @@ class ApiClient {
     return _request('POST', path, body: body);
   }
 
+  Future<dynamic> patchJson(
+    String path, {
+    Object? body,
+  }) {
+    return _request('PATCH', path, body: body);
+  }
+
   Future<dynamic> _request(
     String method,
     String path, {
@@ -54,6 +61,9 @@ class ApiClient {
     switch (method) {
       case 'POST':
         response = await _client.post(uri, headers: headers, body: _encode(body));
+        break;
+      case 'PATCH':
+        response = await _client.patch(uri, headers: headers, body: _encode(body));
         break;
       case 'GET':
       default:

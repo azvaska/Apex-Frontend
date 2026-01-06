@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'package:apex/features/profilo/data/profile_repository.dart';
 import 'package:apex/features/profilo/models/profile_models.dart';
+import 'package:apex/features/profilo/presentation/widgets/profile_avatar.dart';
 
 class ProfileEditSheet extends StatefulWidget {
   final ProfileUser user;
+  final ProfileRepository repository;
 
-  const ProfileEditSheet({super.key, required this.user});
+  const ProfileEditSheet({
+    super.key,
+    required this.user,
+    required this.repository,
+  });
 
   @override
   State<ProfileEditSheet> createState() => _ProfileEditSheetState();
@@ -15,6 +22,8 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
+  bool _isSubmitting = false;
+  String? _error;
 
   @override
   void initState() {
@@ -32,13 +41,35 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
     super.dispose();
   }
 
-  void _handleSave() {
-    final updated = widget.user.copyWith(
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      email: _emailController.text.trim(),
-    );
-    Navigator.of(context).pop(updated);
+  Future<void> _handleSave() async {
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    if (firstName.isEmpty || lastName.isEmpty) {
+      setState(() => _error = 'Inserisci nome e cognome.');
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
+    try {
+      final updated = await widget.repository.updateProfile(
+        name: firstName,
+        surname: lastName,
+        profileImage: widget.user.avatarUrl,
+      );
+      if (mounted) {
+        Navigator.of(context).pop(updated);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Errore: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -109,10 +140,10 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
                             ],
                           ),
                           child: Center(
-                            child: Icon(
-                              Icons.person_outline,
-                              color: colorScheme.primary,
-                              size: 60,
+                            child: ProfileAvatar(
+                              imageUrl: widget.user.avatarUrl,
+                              size: 136,
+                              iconColor: colorScheme.primary,
                             ),
                           ),
                         ),
@@ -172,7 +203,19 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
                 hintText: 'mario.rossi@email.com',
                 icon: Icons.mail_outline,
                 keyboardType: TextInputType.emailAddress,
+                enabled: false,
               ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -183,8 +226,14 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-                  onPressed: _handleSave,
-                  icon: const Icon(Icons.save_alt_rounded),
+                  onPressed: _isSubmitting ? null : _handleSave,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_alt_rounded),
                   label: const Text('Salva Modifiche'),
                 ),
               ),
@@ -241,6 +290,7 @@ class _ProfileTextField extends StatelessWidget {
   final String hintText;
   final IconData icon;
   final TextInputType? keyboardType;
+  final bool enabled;
 
   const _ProfileTextField({
     required this.label,
@@ -248,6 +298,7 @@ class _ProfileTextField extends StatelessWidget {
     required this.hintText,
     required this.icon,
     this.keyboardType,
+    this.enabled = true,
   });
 
   @override
@@ -268,6 +319,7 @@ class _ProfileTextField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          enabled: enabled,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.grey.shade600),
             hintText: hintText,

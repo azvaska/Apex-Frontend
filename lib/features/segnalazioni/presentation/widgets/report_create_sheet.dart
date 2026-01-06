@@ -22,6 +22,8 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
   late Future<List<AreaOfInterest>> _areasFuture;
   AreaOfInterest? _selectedArea;
   bool _isSubmitting = false;
+  List<AreaOfInterest> _areas = const [];
+  String? _formError;
 
   @override
   void dispose() {
@@ -35,8 +37,17 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
     super.initState();
     _areasFuture = widget.repository.fetchAreas();
     _areasFuture.then((areas) {
-      if (mounted && _selectedArea == null && areas.isNotEmpty) {
-        setState(() => _selectedArea = areas.first);
+      if (mounted) {
+        setState(() {
+          _areas = areas;
+          _selectedArea ??= areas.isNotEmpty ? areas.first : null;
+        });
+      }
+    }).catchError((_) {
+      if (mounted) {
+        setState(() {
+          _areas = const [];
+        });
       }
     });
   }
@@ -44,16 +55,13 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
+    setState(() => _formError = null);
     if (title.isEmpty || description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Compila titolo e descrizione.')),
-      );
+      setState(() => _formError = 'Compila titolo e descrizione.');
       return;
     }
     if (_selectedArea == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Seleziona una posizione.')),
-      );
+      setState(() => _formError = 'Seleziona una posizione.');
       return;
     }
     final normalizedTitle = title.toLowerCase().contains(_selectedType.toLowerCase())
@@ -69,13 +77,8 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
       if (mounted) {
         Navigator.of(context).pop(true);
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Segnalazione inviata.')),
-      );
     } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $error')),
-      );
+      setState(() => _formError = 'Errore: $error');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -272,6 +275,8 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
                                   snapshot.connectionState ==
                                           ConnectionState.waiting
                                       ? 'Caricamento posizioni...'
+                                      : _areas.isEmpty
+                                          ? 'Nessuna posizione disponibile'
                                       : 'GPS attivo',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.outline,
@@ -303,6 +308,17 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
                 },
               ),
               const SizedBox(height: 18),
+              if (_formError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _formError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -312,7 +328,7 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: _isSubmitting || _areas.isEmpty ? null : _submit,
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 16,
