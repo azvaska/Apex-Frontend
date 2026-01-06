@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:apex/features/assistente/presentation/screens/assistente_screen.dart';
 import 'package:apex/features/guida/presentation/screens/guida_screen.dart';
@@ -40,9 +41,15 @@ class _AppShellState extends State<AppShell> {
     AppTab(
       label: 'Profilo',
       icon: Icons.person_outline,
-      screen: ProfiloScreen(),
+      screen: ProfiloScreen(
+        onLogout: _handleLogout,
+      ),
     ),
   ];
+
+  static void _handleLogout() {
+    FirebaseAuth.instance.signOut();
+  }
 
   void _onTap(int index) {
     setState(() {

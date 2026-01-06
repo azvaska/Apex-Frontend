@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:apex/app/shell/app_shell.dart';
 import 'package:apex/app/theme/app_theme.dart';
+import 'package:apex/shared/auth/auth_gate.dart';
 
 class ApexApp extends StatelessWidget {
   const ApexApp({super.key});
@@ -12,7 +12,7 @@ class ApexApp extends StatelessWidget {
       title: 'Apex',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
-      home: const AppShell(),
+      home: const AuthGate(),
     );
   }
 }
