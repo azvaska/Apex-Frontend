@@ -23,12 +23,14 @@ class EmergencyContact {
 class QuickGuide {
   final String title;
   final String description;
+  final List<String> steps;
   final IconData icon;
   final Color tint;
 
   const QuickGuide({
     required this.title,
     required this.description,
+    required this.steps,
     required this.icon,
     required this.tint,
   });

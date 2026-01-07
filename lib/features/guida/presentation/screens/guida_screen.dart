@@ -58,24 +58,48 @@ class GuidaScreen extends StatelessWidget {
     QuickGuide(
       title: 'Primo Soccorso',
       description: 'Kit minimo, controllo vittima, allertare i soccorsi',
+      steps: [
+        'Metti in sicurezza la zona e la persona.',
+        'Controlla coscienza e respirazione.',
+        'Chiama i soccorsi e indica la posizione.',
+        'Proteggi dal freddo con coperta o indumenti.',
+      ],
       icon: Icons.medical_services_outlined,
       tint: Color(0xFFFF6B6B),
     ),
     QuickGuide(
       title: 'Bivacco di emergenza',
       description: 'Riparo, segnalazione visiva, gestione risorse',
+      steps: [
+        'Scegli un punto riparato dal vento.',
+        'Usa telo o zaino per isolarti dal terreno.',
+        'Mantieni energia e calore con movimenti leggeri.',
+        'Segnala la posizione con luce o fischietto.',
+      ],
       icon: Icons.park_outlined,
       tint: Color(0xFF4CAF50),
     ),
     QuickGuide(
       title: 'Meteo improvviso',
       description: 'Segnali pre-frontali, cosa fare con vento/neve',
+      steps: [
+        'Cerca riparo e riduci l\'esposizione in cresta.',
+        'Riorganizza il gruppo e resta unito.',
+        'Usa strati impermeabili e protezione occhi.',
+        'Valuta un rientro rapido verso il punto sicuro.',
+      ],
       icon: Icons.cloud_sync_outlined,
       tint: Color(0xFF2196F3),
     ),
     QuickGuide(
       title: 'Orientamento offline',
       description: 'Azimut, punti di riferimento, uso bussola e mappa',
+      steps: [
+        'Individua un riferimento stabile nel territorio.',
+        'Calcola l\'azimut con bussola o app offline.',
+        'Segui tappe brevi e controlla la posizione spesso.',
+        'Se perdi il sentiero, torna all\'ultimo punto noto.',
+      ],
       icon: Icons.explore_outlined,
       tint: Color(0xFF9C27B0),
     ),
@@ -133,7 +157,7 @@ class GuidaScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _GuideCard(
                         guide: guide,
-                        onTap: () => onOpenGuide?.call(guide),
+                        onTap: () => _handleGuideTap(context, guide),
                       ),
                     ),
                   )
@@ -144,6 +168,18 @@ class GuidaScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+void _handleGuideTap(BuildContext context, QuickGuide guide) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _GuideDetailSheet(guide: guide),
+  );
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -408,6 +444,78 @@ class _GuideCard extends StatelessWidget {
               Icon(Icons.chevron_right_rounded, color: Colors.grey.shade500),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideDetailSheet extends StatelessWidget {
+  final QuickGuide guide;
+
+  const _GuideDetailSheet({required this.guide});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    guide.title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              guide.description,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...guide.steps.map(
+              (step) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(
+                        color: guide.tint,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        step,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
