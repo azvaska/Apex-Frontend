@@ -5,10 +5,12 @@ import 'package:apex/features/segnalazioni/models/report_models.dart';
 
 class ReportCreateSheet extends StatefulWidget {
   final ReportRepository repository;
+  final Future<void> Function()? onCreated;
 
   const ReportCreateSheet({
     super.key,
     required this.repository,
+    this.onCreated,
   });
 
   @override
@@ -74,6 +76,9 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
         text: description,
         areaId: _selectedArea!.id,
       );
+      if (widget.onCreated != null) {
+        await widget.onCreated!();
+      }
       if (mounted) {
         Navigator.of(context).pop(true);
       }

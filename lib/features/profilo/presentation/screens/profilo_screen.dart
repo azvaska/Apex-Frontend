@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:apex/features/profilo/data/monitoring_repository.dart';
 import 'package:apex/features/profilo/data/profile_repository.dart';
 import 'package:apex/features/profilo/models/profile_models.dart';
 import 'package:apex/features/profilo/presentation/widgets/profile_action_tile.dart';
@@ -36,10 +37,11 @@ class ProfiloScreen extends StatefulWidget {
 
 class _ProfiloScreenState extends State<ProfiloScreen> {
   final ProfileRepository _repository = ProfileRepository();
+  final MonitoringRepository _monitoringRepository = MonitoringRepository();
   late ProfileUser _user;
   late Future<ProfileUser> _userFuture;
   late List<MonitoredArea> _areas;
-  late final List<AreaOption> _availableAreas;
+  late Future<List<AlertPreference>> _preferencesFuture;
 
   @override
   void initState() {
@@ -52,31 +54,8 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
           email: '',
         );
     _userFuture = _repository.fetchCurrentUser();
-    _areas = widget.monitoredAreas ?? const [
-      MonitoredArea(
-        name: "Cortina d'Ampezzo",
-        category: 'Valanghe',
-        riskLevel: RiskLevel.high,
-      ),
-      MonitoredArea(
-        name: 'Rifugio Auronzo',
-        category: 'Frane',
-        riskLevel: RiskLevel.medium,
-      ),
-      MonitoredArea(
-        name: 'Val di Fassa',
-        category: 'Meteo',
-        riskLevel: RiskLevel.low,
-      ),
-    ];
-    _availableAreas = const [
-      AreaOption(name: "Cortina d'Ampezzo", detail: 'Comune · Belluno'),
-      AreaOption(name: 'Val di Fassa', detail: 'Valle · Trento'),
-      AreaOption(name: 'Rifugio Lagazuoi', detail: 'Rifugio · Belluno'),
-      AreaOption(name: 'Rifugio Auronzo', detail: 'Rifugio · Belluno'),
-      AreaOption(name: 'Canazei', detail: 'Comune · Trento'),
-      AreaOption(name: 'San Martino di Castrozza', detail: 'Comune · Trento'),
-    ];
+    _areas = widget.monitoredAreas ?? const [];
+    _preferencesFuture = _monitoringRepository.fetchPreferences();
   }
 
   Future<void> _openEditProfileSheet() async {
@@ -107,20 +86,58 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => ProfileAreasSheet(
-        areas: _areas,
-        onAddArea: () => _openAddAreaSheet(),
-        onRemoveArea: (area) {
-          widget.onRemoveArea?.call(area);
-          setState(() {
-            _areas = List.of(_areas)..remove(area);
-          });
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          Future<void> refreshSheet() async {
+            final latest = await _monitoringRepository.fetchPreferences();
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _areas = latest.map(_toMonitoredArea).toList();
+              _preferencesFuture = Future.value(latest);
+            });
+            setSheetState(() {});
+          }
+
+          return ProfileAreasSheet(
+            areas: _areas,
+            onAddArea: () => _openAddAreaSheet(),
+            onRemoveArea: (area) async {
+              await _removeArea(area);
+              await refreshSheet();
+            },
+          );
         },
       ),
     );
   }
 
   Future<void> _openAddAreaSheet() async {
+    List<AreaSummary> areas = const [];
+    try {
+      areas = await _monitoringRepository.fetchAreas();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: $error')),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    if (areas.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessuna area disponibile.')),
+      );
+      return;
+    }
     final selection = await showModalBottomSheet<AddAreaSelection>(
       context: context,
       isScrollControlled: true,
@@ -129,23 +146,104 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => ProfileAddAreaSheet(
-        availableAreas: _availableAreas,
+        availableAreas: areas
+            .map(
+              (area) => AreaOption(
+                id: area.id,
+                name: area.name,
+                detail: 'Area di interesse',
+              ),
+            )
+            .toList(),
       ),
     );
 
     if (selection != null) {
-      widget.onAddArea?.call(selection);
-      setState(() {
-        _areas = List.of(_areas)
-          ..add(
-            MonitoredArea(
-              name: selection.area.name,
-              category: selection.risks.map((r) => r.label).join(' · '),
-              riskLevel: RiskLevel.medium,
-            ),
-          );
-      });
+      await _createPreference(selection);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
+  }
+
+  Future<void> _createPreference(AddAreaSelection selection) async {
+    final riskSet = selection.risks;
+    if (riskSet.isEmpty) {
+      return;
+    }
+    try {
+      final preference = await _monitoringRepository.createPreference(
+        areaId: selection.area.id,
+        avalancheThreshold: riskSet.contains(RiskCategory.avalanches) ? 3 : 0,
+        flood: riskSet.contains(RiskCategory.rivers),
+        storm: riskSet.contains(RiskCategory.severeWeather),
+        landslide: riskSet.contains(RiskCategory.landslides),
+      );
+      setState(() {
+        _areas = List.of(_areas)..add(_toMonitoredArea(preference));
+        _preferencesFuture = _monitoringRepository.fetchPreferences();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: $error')),
+      );
+    }
+  }
+
+  Future<void> _removeArea(MonitoredArea area) async {
+    try {
+      await _monitoringRepository.deletePreference(area.preferenceId);
+      widget.onRemoveArea?.call(area);
+      setState(() {
+        _areas = List.of(_areas)..remove(area);
+        _preferencesFuture = _monitoringRepository.fetchPreferences();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore: $error')),
+      );
+    }
+  }
+
+  MonitoredArea _toMonitoredArea(AlertPreference preference) {
+    final categories = <String>[];
+    if (preference.avalancheThreshold > 0) {
+      categories.add(RiskCategory.avalanches.label);
+    }
+    if (preference.landslide) {
+      categories.add(RiskCategory.landslides.label);
+    }
+    if (preference.storm) {
+      categories.add(RiskCategory.severeWeather.label);
+    }
+    if (preference.flood) {
+      categories.add(RiskCategory.rivers.label);
+    }
+    final label = categories.isEmpty ? 'Monitoraggio' : categories.join(' · ');
+    final riskLevel = _riskLevelFromThreshold(preference.avalancheThreshold);
+    return MonitoredArea(
+      preferenceId: preference.id,
+      areaId: preference.areaId,
+      name: preference.areaName,
+      category: label,
+      riskLevel: riskLevel,
+    );
+  }
+
+  RiskLevel _riskLevelFromThreshold(int threshold) {
+    if (threshold >= 4) {
+      return RiskLevel.high;
+    }
+    if (threshold >= 2) {
+      return RiskLevel.medium;
+    }
+    return RiskLevel.low;
   }
 
   @override
@@ -217,6 +315,35 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
                   onEditProfile: _openEditProfileSheet,
                 ),
                 const SizedBox(height: 20),
+                FutureBuilder<List<AlertPreference>>(
+                  future: _preferencesFuture,
+                  builder: (context, prefsSnapshot) {
+                    if (prefsSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      );
+                    }
+                    if (prefsSnapshot.hasData) {
+                      _areas = prefsSnapshot.data!
+                          .map((pref) => _toMonitoredArea(pref))
+                          .toList();
+                    }
+                    if (prefsSnapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Errore nel caricamento aree monitorate.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
                 Text(
                   'Azioni rapide',
                   style: theme.textTheme.titleMedium?.copyWith(

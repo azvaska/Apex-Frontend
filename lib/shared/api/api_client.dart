@@ -49,6 +49,13 @@ class ApiClient {
     return _request('PATCH', path, body: body);
   }
 
+  Future<dynamic> deleteJson(
+    String path, {
+    Object? body,
+  }) {
+    return _request('DELETE', path, body: body);
+  }
+
   Future<dynamic> _request(
     String method,
     String path, {
@@ -64,6 +71,9 @@ class ApiClient {
         break;
       case 'PATCH':
         response = await _client.patch(uri, headers: headers, body: _encode(body));
+        break;
+      case 'DELETE':
+        response = await _client.delete(uri, headers: headers, body: _encode(body));
         break;
       case 'GET':
       default:

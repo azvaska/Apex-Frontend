@@ -189,23 +189,31 @@ class _AreaTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      area.category,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade700,
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            area.category,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          Container(
+                            height: 4,
+                            width: 4,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade400,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          _RiskPill(level: area.riskLevel),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      height: 4,
-                      width: 4,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    _RiskPill(level: area.riskLevel),
                   ],
                 ),
               ],

@@ -90,22 +90,30 @@ extension RiskCategoryX on RiskCategory {
 }
 
 class MonitoredArea {
+  final String preferenceId;
+  final String areaId;
   final String name;
   final String category;
   final RiskLevel riskLevel;
 
   const MonitoredArea({
+    required this.preferenceId,
+    required this.areaId,
     required this.name,
     required this.category,
     required this.riskLevel,
   });
 
   MonitoredArea copyWith({
+    String? preferenceId,
+    String? areaId,
     String? name,
     String? category,
     RiskLevel? riskLevel,
   }) {
     return MonitoredArea(
+      preferenceId: preferenceId ?? this.preferenceId,
+      areaId: areaId ?? this.areaId,
       name: name ?? this.name,
       category: category ?? this.category,
       riskLevel: riskLevel ?? this.riskLevel,
@@ -158,10 +166,12 @@ class ProfileUser {
 }
 
 class AreaOption {
+  final String id;
   final String name;
   final String detail;
 
   const AreaOption({
+    required this.id,
     required this.name,
     required this.detail,
   });

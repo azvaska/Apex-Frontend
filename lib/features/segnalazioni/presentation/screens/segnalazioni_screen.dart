@@ -114,11 +114,23 @@ class _SegnalazioniScreenState extends State<SegnalazioniScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => ReportCreateSheet(repository: _repository),
+      builder: (context) => ReportCreateSheet(
+        repository: _repository,
+        onCreated: _refreshReports,
+      ),
     );
     if (created == true && mounted) {
-      setState(() => _reportsFuture = _repository.fetchReports());
+      _refreshReports();
     }
+  }
+
+  Future<void> _refreshReports() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _reportsFuture = _repository.fetchReports();
+    });
   }
 }
 
