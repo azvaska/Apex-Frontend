@@ -73,7 +73,10 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
     );
 
     if (updatedUser != null) {
-      setState(() => _user = updatedUser);
+      setState(() {
+        _user = updatedUser;
+        _userFuture = _repository.fetchCurrentUser();
+      });
       widget.onProfileUpdated?.call(updatedUser);
     }
   }
@@ -360,22 +363,7 @@ class _ProfiloScreenState extends State<ProfiloScreen> {
                   onTap: _openAreasSheet,
                 ),
                 const SizedBox(height: 12),
-                ProfileActionTile(
-                  icon: Icons.notifications_active_outlined,
-                  accentColor: const Color(0xFFF29D38),
-                  title: 'Notifiche',
-                  subtitle: 'Preferenze e livelli di allerta',
-                  onTap: widget.onOpenNotifications,
-                ),
-                const SizedBox(height: 12),
-                ProfileActionTile(
-                  icon: Icons.info_outline,
-                  accentColor: const Color(0xFF8A6CFF),
-                  title: 'Info e Supporto',
-                  subtitle: 'Aiuto e informazioni',
-                  onTap: widget.onOpenInfoSupport,
-                ),
-                const SizedBox(height: 18),
+            const SizedBox(height: 18),
                 ProfileActionTile(
                   icon: Icons.logout_rounded,
                   accentColor: Colors.red.shade600,

@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:apex/features/profilo/data/profile_repository.dart';
 import 'package:apex/features/profilo/models/profile_models.dart';
@@ -19,19 +24,14 @@ class ProfileEditSheet extends StatefulWidget {
 }
 
 class _ProfileEditSheetState extends State<ProfileEditSheet> {
+  static const int _maxImageBytes = 90 * 1024;
+  final ImagePicker _picker = ImagePicker();
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   bool _isSubmitting = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _firstNameController = TextEditingController(text: widget.user.firstName);
-    _lastNameController = TextEditingController(text: widget.user.lastName);
-    _emailController = TextEditingController(text: widget.user.email);
-  }
+  String? _avatarDataUrl;
 
   @override
   void dispose() {
@@ -39,6 +39,15 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
     _lastNameController.dispose();
     _emailController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameController = TextEditingController(text: widget.user.firstName);
+    _lastNameController = TextEditingController(text: widget.user.lastName);
+    _emailController = TextEditingController(text: widget.user.email);
+    _avatarDataUrl = widget.user.avatarUrl;
   }
 
   Future<void> _handleSave() async {
@@ -56,7 +65,7 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
       final updated = await widget.repository.updateProfile(
         name: firstName,
         surname: lastName,
-        profileImage: widget.user.avatarUrl,
+        profileImage: _avatarDataUrl,
       );
       if (mounted) {
         Navigator.of(context).pop(updated);
@@ -69,6 +78,122 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  Future<void> _showImageSourcePicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: const Text('Scatta una foto'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Scegli dalla galleria'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) {
+        return;
+      }
+      final compressed = await _compressImage(picked);
+      if (compressed == null || compressed.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _error = 'Impossibile comprimere la foto.');
+        return;
+      }
+      if (compressed.length > _maxImageBytes) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _error = 'Foto troppo grande.');
+        return;
+      }
+      final mime = picked.mimeType ?? _inferMime(picked.path);
+      final dataUrl = 'data:$mime;base64,${base64Encode(compressed)}';
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _avatarDataUrl = dataUrl;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = 'Errore: $error');
+    }
+  }
+
+  Future<Uint8List?> _compressImage(XFile picked) async {
+    const minWidth = 900;
+    const minHeight = 900;
+    final targetPath = picked.path;
+    for (final quality in [80, 70, 60, 50]) {
+      final result = await FlutterImageCompress.compressWithFile(
+        targetPath,
+        quality: quality,
+        minWidth: minWidth,
+        minHeight: minHeight,
+        format: CompressFormat.jpeg,
+      );
+      if (result != null && result.length <= _maxImageBytes) {
+        return result;
+      }
+    }
+    return FlutterImageCompress.compressWithFile(
+      targetPath,
+      quality: 30,
+      minWidth: minWidth ~/ 2,
+      minHeight: minHeight ~/ 2,
+      format: CompressFormat.jpeg,
+    );
+  }
+
+  String _inferMime(String path) {
+    final parts = path.split('.');
+    if (parts.length < 2) {
+      return 'image/jpeg';
+    }
+    final ext = parts.last.toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 
@@ -141,7 +266,7 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
                           ),
                           child: Center(
                             child: ProfileAvatar(
-                              imageUrl: widget.user.avatarUrl,
+                              imageUrl: _avatarDataUrl,
                               size: 136,
                               iconColor: colorScheme.primary,
                             ),
@@ -150,23 +275,26 @@ class _ProfileEditSheetState extends State<ProfileEditSheet> {
                         Positioned(
                           bottom: 10,
                           right: 10,
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorScheme.primary.withOpacity(0.35),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.photo_camera_rounded,
-                              color: Colors.white,
-                              size: 18,
+                          child: GestureDetector(
+                            onTap: _showImageSourcePicker,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withOpacity(0.35),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.photo_camera_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),

@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:apex/features/segnalazioni/data/report_repository.dart';
 import 'package:apex/features/segnalazioni/models/report_models.dart';
@@ -18,6 +23,8 @@ class ReportCreateSheet extends StatefulWidget {
 }
 
 class _ReportCreateSheetState extends State<ReportCreateSheet> {
+  static const int _maxImageBytes = 90 * 1024;
+  final ImagePicker _picker = ImagePicker();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   String _selectedType = 'Frana';
@@ -26,6 +33,8 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
   bool _isSubmitting = false;
   List<AreaOfInterest> _areas = const [];
   String? _formError;
+  Uint8List? _imageBytes;
+  String? _imageDataUrl;
 
   @override
   void dispose() {
@@ -75,6 +84,7 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
         title: normalizedTitle,
         text: description,
         areaId: _selectedArea!.id,
+        imageDataUrl: _imageDataUrl,
       );
       if (widget.onCreated != null) {
         await widget.onCreated!();
@@ -105,6 +115,126 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
     );
     if (selection != null) {
       setState(() => _selectedArea = selection);
+    }
+  }
+
+  Future<void> _showImageSourcePicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: const Text('Scatta una foto'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Scegli dalla galleria'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null) {
+        return;
+      }
+      final compressed = await _compressImage(picked);
+      if (compressed == null || compressed.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _formError = 'Impossibile comprimere la foto.');
+        return;
+      }
+      if (compressed.length > _maxImageBytes) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _formError =
+              'Foto troppo grande. Scegli un\'immagine piu piccola.';
+        });
+        return;
+      }
+      final mime = picked.mimeType ?? _inferMime(picked.path);
+      final dataUrl = 'data:$mime;base64,${base64Encode(compressed)}';
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _imageBytes = compressed;
+        _imageDataUrl = dataUrl;
+        _formError = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _formError = 'Errore: $error');
+    }
+  }
+
+  Future<Uint8List?> _compressImage(XFile picked) async {
+    const minWidth = 1200;
+    const minHeight = 1200;
+    final targetPath = picked.path;
+    for (final quality in [80, 70, 60, 50, 40]) {
+      final result = await FlutterImageCompress.compressWithFile(
+        targetPath,
+        quality: quality,
+        minWidth: minWidth,
+        minHeight: minHeight,
+        format: CompressFormat.jpeg,
+      );
+      if (result != null && result.length <= _maxImageBytes) {
+        return result;
+      }
+    }
+    return FlutterImageCompress.compressWithFile(
+      targetPath,
+      quality: 30,
+      minWidth: minWidth ~/ 2,
+      minHeight: minHeight ~/ 2,
+      format: CompressFormat.jpeg,
+    );
+  }
+
+  String _inferMime(String path) {
+    final parts = path.split('.');
+    if (parts.length < 2) {
+      return 'image/jpeg';
+    }
+    final ext = parts.last.toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 
@@ -213,30 +343,76 @@ class _ReportCreateSheetState extends State<ReportCreateSheet> {
                 ),
               ),
               const SizedBox(height: 8),
-              _DashedBorder(
-                radius: 16,
-                color: theme.colorScheme.outlineVariant,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.camera_alt_outlined,
-                            color: theme.colorScheme.outline, size: 36),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Scatta o carica una foto',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.outline,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+              GestureDetector(
+                onTap: _imageBytes == null ? _showImageSourcePicker : null,
+                child: _DashedBorder(
+                  radius: 16,
+                  color: theme.colorScheme.outlineVariant,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: _imageBytes == null
+                          ? Column(
+                              children: [
+                                Icon(Icons.camera_alt_outlined,
+                                    color: theme.colorScheme.outline, size: 36),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Scatta o carica una foto',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            )
+                              : Stack(
+                                  alignment: Alignment.topRight,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.memory(
+                                        _imageBytes!,
+                                        height: 160,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(6),
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _imageBytes = null;
+                                            _imageDataUrl = null;
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(Icons.close,
+                                              size: 16, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                     ),
                   ),
                 ),
               ),
+              if (_imageBytes != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showImageSourcePicker,
+                    child: const Text('Cambia foto'),
+                  ),
+                ),
               const SizedBox(height: 18),
               Text(
                 'Posizione',
