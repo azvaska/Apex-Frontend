@@ -6,6 +6,7 @@ import 'package:apex/features/segnalazioni/presentation/widgets/report_card.dart
 import 'package:apex/features/segnalazioni/presentation/widgets/report_create_sheet.dart';
 import 'package:apex/features/segnalazioni/presentation/widgets/report_detail_sheet.dart';
 import 'package:apex/features/segnalazioni/presentation/widgets/report_tag.dart';
+import 'package:apex/features/profilo/data/profile_repository.dart';
 
 class SegnalazioniScreen extends StatefulWidget {
   const SegnalazioniScreen({super.key});
@@ -16,13 +17,16 @@ class SegnalazioniScreen extends StatefulWidget {
 
 class _SegnalazioniScreenState extends State<SegnalazioniScreen> {
   final ReportRepository _repository = ReportRepository();
+  final ProfileRepository _profileRepository = ProfileRepository();
   late Future<List<Report>> _reportsFuture;
   String _selectedFilter = 'Tutte';
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     _reportsFuture = _repository.fetchReports();
+    _loadCurrentUser();
   }
 
   @override
@@ -69,6 +73,7 @@ class _SegnalazioniScreenState extends State<SegnalazioniScreen> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: ReportCard(
                       report: report,
+                      isOwn: report.user.id == _currentUserId,
                       onTap: () => _openDetail(context, report),
                     ),
                   ),
@@ -104,7 +109,11 @@ class _SegnalazioniScreenState extends State<SegnalazioniScreen> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) =>
-          ReportDetailSheet(report: report, repository: _repository),
+          ReportDetailSheet(
+            report: report,
+            repository: _repository,
+            isOwn: report.user.id == _currentUserId,
+          ),
     );
   }
 
@@ -131,6 +140,16 @@ class _SegnalazioniScreenState extends State<SegnalazioniScreen> {
     setState(() {
       _reportsFuture = _repository.fetchReports();
     });
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _profileRepository.fetchCurrentUser();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _currentUserId = user.id);
+    } catch (_) {}
   }
 }
 

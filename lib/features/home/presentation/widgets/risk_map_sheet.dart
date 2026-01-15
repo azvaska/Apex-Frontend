@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:apex/features/home/data/environmental_repository.dart';
 import 'package:apex/features/home/data/home_repository.dart';
 
 class RiskMapSheet extends StatefulWidget {
@@ -19,6 +20,10 @@ class RiskMapSheet extends StatefulWidget {
 class _RiskMapSheetState extends State<RiskMapSheet> {
   late Future<_RiskMapData> _dataFuture;
   _AreaRisk? _selected;
+  final EnvironmentalRepository _environmentalRepository =
+      EnvironmentalRepository();
+  final Map<String, EnvironmentalSample> _samplesCache = {};
+  bool _isLoadingSample = false;
 
   @override
   void initState() {
@@ -117,7 +122,7 @@ class _RiskMapSheetState extends State<RiskMapSheet> {
                         child: _MapCanvas(
                           risks: risks,
                           onSelect: (area) {
-                            setState(() => _selected = area);
+                            _handleSelect(area);
                           },
                         ),
                       ),
@@ -128,6 +133,8 @@ class _RiskMapSheetState extends State<RiskMapSheet> {
                           bottom: 16,
                           child: _AreaDetailCard(
                             area: _selected!,
+                            sample: _samplesCache[_selected!.id],
+                            isLoadingSample: _isLoadingSample,
                             onClose: () => setState(() => _selected = null),
                           ),
                         ),
@@ -176,6 +183,34 @@ class _RiskMapSheetState extends State<RiskMapSheet> {
       return 'Meteo';
     }
     return 'Monitoraggio';
+  }
+
+  Future<void> _handleSelect(_AreaRisk area) async {
+    setState(() {
+      _selected = area;
+      _isLoadingSample = !_samplesCache.containsKey(area.id);
+    });
+    if (_samplesCache.containsKey(area.id)) {
+      return;
+    }
+    try {
+      final sample =
+          await _environmentalRepository.fetchLatestSample(area.id);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _samplesCache[area.id] = sample;
+        _isLoadingSample = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingSample = false;
+      });
+    }
   }
 }
 
@@ -381,10 +416,14 @@ class _MapMarkerDot extends StatelessWidget {
 class _AreaDetailCard extends StatelessWidget {
   final _AreaRisk area;
   final VoidCallback onClose;
+  final EnvironmentalSample? sample;
+  final bool isLoadingSample;
 
   const _AreaDetailCard({
     required this.area,
     required this.onClose,
+    required this.sample,
+    required this.isLoadingSample,
   });
 
   @override
@@ -481,10 +520,104 @@ class _AreaDetailCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          if (isLoadingSample)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (sample == null)
+            Text(
+              'Dati meteo non disponibili.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 64) / 2,
+                  child: _MetricTile(
+                    label: 'Temperatura',
+                    value: '${sample!.airTemperatureC.toStringAsFixed(1)}°C',
+                    color: const Color(0xFFE3F0FF),
+                    icon: Icons.device_thermostat_outlined,
+                  ),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 64) / 2,
+                  child: _MetricTile(
+                    label: 'Vento',
+                    value: '${_msToKmh(sample!.windSpeedMs)} km/h',
+                    color: const Color(0xFFE7FAFF),
+                    icon: Icons.air,
+                  ),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 64) / 2,
+                  child: _MetricTile(
+                    label: 'Precipitazioni',
+                    value:
+                        '${sample!.precipitationMm.toStringAsFixed(1)} mm',
+                    color: const Color(0xFFEFF2FF),
+                    icon: Icons.grain,
+                  ),
+                ),
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 64) / 2,
+                  child: _MetricTile(
+                    label: 'Umidita',
+                    value: '${sample!.relativeHumidity.toStringAsFixed(0)}%',
+                    color: const Color(0xFFF6ECFF),
+                    icon: Icons.water_drop_outlined,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(height: 6),
           Text(
-            'Dati meteo non disponibili.',
+            label,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -596,4 +729,8 @@ LatLng _centroid(List<LatLng> points) {
     lng += point.longitude;
   }
   return LatLng(lat / points.length, lng / points.length);
+}
+
+double _msToKmh(double speedMs) {
+  return (speedMs * 3.6).roundToDouble();
 }

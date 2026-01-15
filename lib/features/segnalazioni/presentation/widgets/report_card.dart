@@ -7,11 +7,13 @@ import 'package:apex/features/segnalazioni/presentation/widgets/report_tag.dart'
 class ReportCard extends StatelessWidget {
   final Report report;
   final VoidCallback onTap;
+  final bool isOwn;
 
   const ReportCard({
     super.key,
     required this.report,
     required this.onTap,
+    required this.isOwn,
   });
 
   @override
@@ -92,11 +94,31 @@ class ReportCard extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    'da ${report.user.name} ${report.user.surname}',
+                    isOwn
+                        ? 'da te'
+                        : 'da ${report.user.name} ${report.user.surname}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
                   ),
+                  if (isOwn) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'tu',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   Text(
                     '${report.comments.length} commenti',

@@ -8,11 +8,13 @@ import 'package:apex/features/segnalazioni/presentation/widgets/report_tag.dart'
 class ReportDetailSheet extends StatefulWidget {
   final Report report;
   final ReportRepository repository;
+  final bool isOwn;
 
   const ReportDetailSheet({
     super.key,
     required this.report,
     required this.repository,
+    required this.isOwn,
   });
 
   @override
@@ -148,7 +150,9 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   const SizedBox(height: 16),
                   _InfoRow(
                     icon: Icons.person_outline,
-                    label: '${report.user.name} ${report.user.surname}',
+                    label: widget.isOwn
+                        ? 'Tu'
+                        : '${report.user.name} ${report.user.surname}',
                   ),
                   _InfoRow(
                     icon: Icons.place_outlined,
